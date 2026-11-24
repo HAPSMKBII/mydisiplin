@@ -98,6 +98,21 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;borde
 .hscroll::-webkit-scrollbar{display:none}
 .hscroll .chip,.hscroll select{flex:none}
 .hscroll select{min-height:38px;border-radius:19px;border:1.5px solid var(--field);background:#fff;padding:0 12px;font-size:13px}
+/* Pilih berbilang dengan carian (guru bertugas) */
+.cp{display:flex;flex-direction:column;gap:6px}
+.cp-sel{display:flex;flex-wrap:wrap;gap:6px}
+.cp-sel:empty{display:none}
+.cp-tag{display:inline-flex;align-items:center;gap:4px;min-height:32px;border-radius:16px;background:var(--navy);color:#fff;border:0;padding:2px 6px 2px 12px;font-size:13px;font-weight:600;cursor:pointer;text-align:left;max-width:100%}
+.cp-tag span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-tag i{font-style:normal;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;flex:none;font-size:14px;line-height:1}
+.cp-box{position:relative}
+.cp-box .inp{padding-right:40px}
+.cp-x{position:absolute;right:4px;top:4px;width:40px;height:40px;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;border-radius:50%}
+.cp-list{list-style:none;margin:0;padding:4px;border:1.5px solid var(--field);border-radius:10px;background:#fff;max-height:min(260px,40vh);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.cp-list li{min-height:44px;display:flex;align-items:center;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px}
+.cp-list li.on,.cp-list li:hover{background:var(--tag)}
+.cp-list li mark{background:#fde68a;color:inherit;border-radius:2px}
+.cp-list li.kosong{color:var(--muted);cursor:default;background:none}
 .search{height:46px;border:0;border-radius:10px;padding:0 14px;font-size:15px;width:100%}
 
 .steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:0 6px 4px;max-width:720px;margin:0 auto}
@@ -184,7 +199,7 @@ dl.dt dt:nth-last-of-type(1),dl.dt dd:last-child{border-bottom:0}
     </form>
     <button class="btn ghost" id="btnPasang" type="button" hidden>Pasang aplikasi di telefon</button>
     <p id="notaIos" style="margin:0;font-size:13px;color:#d4e2f4;text-align:center" hidden>iPhone: tekan Kongsi, kemudian "Add to Home Screen".</p>
-    <div class="foot"><span>Untuk kegunaan guru SMK Bugaya II sahaja</span><span id="versiTeks">Versi 1.0 · Hak milik Unit Disiplin SMK Bugaya II</span><span>Oleh Cikgu Henry Able Padtong</span></div>
+    <div class="foot"><span>Untuk kegunaan guru SMK Bugaya II sahaja</span><span id="versiTeks">Versi 1.0 · Hak milik Unit Disiplin SMK Bugaya II</span><span>Oleh - Cikgu HAP</span></div>
   </div>
 </section>
 
@@ -218,7 +233,7 @@ dl.dt dt:nth-last-of-type(1),dl.dt dd:last-child{border-bottom:0}
 <script>
 (function(){
 "use strict";
-var VERSI='1.0.2';
+var VERSI='1.0.3';
 var $=function(s){return document.querySelector(s)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}}
@@ -452,6 +467,39 @@ function vIsi(arg){
 }
 function opts(list,sel,kosong){return(kosong!==false?'<option value="">'+(kosong||'Pilih…')+'</option>':'')+list.map(function(x){return'<option value="'+esc(x)+'"'+(x===sel?' selected':'')+'>'+esc(x)+'</option>'}).join('')}
 function chips(id,list,sel){return'<div class="chips" id="'+id+'">'+list.map(function(x){return'<button type="button" class="chip" aria-pressed="'+(sel.indexOf(x)>=0)+'" data-v="'+esc(x)+'">'+esc(cap(x))+'</button>'}).join('')+'</div>'}
+function cariPilih(id,list,sel,ph){return'<div class="cp" id="'+id+'"><div class="cp-sel" aria-live="polite"></div><div class="cp-box"><input class="inp" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="'+id+'L" placeholder="'+esc(ph||'Taip untuk mencari…')+'"><button type="button" class="cp-x" aria-label="Kosongkan carian" hidden>×</button></div><ul class="cp-list" id="'+id+'L" role="listbox" hidden></ul></div>'}
+function ikatCariPilih(id,list,arr){
+  var w=$('#'+id);if(!w)return;var inp=w.querySelector('input'),ul=w.querySelector('.cp-list'),sel=w.querySelector('.cp-sel'),x=w.querySelector('.cp-x'),aktif=0,padan=[];
+  function norm(t){return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+  function tanda(t,q){if(!q)return esc(t);var n=norm(t),r='',i=0;q.split(/\s+/).filter(Boolean).forEach(function(k){var j=n.indexOf(k,i);if(j<0)return;r+=esc(t.slice(i,j))+'<mark>'+esc(t.slice(j,j+k.length))+'</mark>';i=j+k.length});return r+esc(t.slice(i))}
+  function lukisSel(){sel.innerHTML=arr.map(function(v){return'<button type="button" class="cp-tag" data-v="'+esc(v)+'" aria-label="Buang '+esc(cap(v))+'"><span>'+esc(cap(v))+'</span><i aria-hidden="true">×</i></button>'}).join('')}
+  function lukis(){
+    var q=norm(inp.value.trim()),ks=q.split(/\s+/).filter(Boolean);x.hidden=!inp.value;
+    padan=list.filter(function(v){if(arr.indexOf(v)>=0)return false;var n=norm(v);return ks.every(function(k){return n.indexOf(k)>=0})});
+    if(ks.length){var sk=function(v){var n=' '+norm(v);return ks.filter(function(k){return n.indexOf(' '+k)>=0}).length};padan=padan.map(function(v,i){return[sk(v),i,v]}).sort(function(a,b){return b[0]-a[0]||a[1]-b[1]}).map(function(a){return a[2]})}
+    if(aktif>=padan.length)aktif=0;
+    ul.innerHTML=padan.length?padan.map(function(v,i){return'<li role="option" id="'+id+'o'+i+'" data-i="'+i+'"'+(i===aktif?' class="on" aria-selected="true"':'')+'><span>'+tanda(cap(v),q)+'</span></li>'}).join(''):'<li class="kosong">'+(arr.length===list.length?'Semua guru telah dipilih.':'Tiada nama sepadan.')+'</li>';
+    ul.hidden=false;inp.setAttribute('aria-expanded','true');
+  }
+  function tutup(){ul.hidden=true;inp.setAttribute('aria-expanded','false')}
+  function pilih(v){if(arr.indexOf(v)<0)arr.push(v);inp.value='';aktif=0;lukisSel();lukis();inp.focus()}
+  inp.addEventListener('focus',function(){lukis();setTimeout(function(){try{w.scrollIntoView({block:'start',behavior:'smooth'})}catch(e){}},250)});
+  inp.addEventListener('input',function(){aktif=0;lukis()});
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!padan.length)return;aktif=(aktif+(e.key==='ArrowDown'?1:padan.length-1))%padan.length;lukis();var o=$('#'+id+'o'+aktif);if(o)o.scrollIntoView({block:'nearest'})}
+    else if(e.key==='Enter'){e.preventDefault();if(padan[aktif]&&!ul.hidden)pilih(padan[aktif])}
+    else if(e.key==='Escape'){tutup()}
+    else if(e.key==='Backspace'&&!inp.value&&arr.length){arr.pop();lukisSel();lukis()}
+  });
+  ul.addEventListener('mousedown',function(e){e.preventDefault()});
+  ul.addEventListener('click',function(e){var li=e.target.closest('li[data-i]');if(li)pilih(padan[+li.getAttribute('data-i')])});
+  x.addEventListener('mousedown',function(e){e.preventDefault()});
+  x.addEventListener('click',function(){inp.value='';aktif=0;lukis();inp.focus()});
+  sel.addEventListener('click',function(e){var b=e.target.closest('.cp-tag');if(!b)return;var i=arr.indexOf(b.getAttribute('data-v'));if(i>=0)arr.splice(i,1);lukisSel();if(!ul.hidden)lukis()});
+  document.addEventListener('click',function(e){if(!w.isConnected)return;if(!w.contains(e.target))tutup()});
+  inp.addEventListener('blur',function(){setTimeout(function(){if(document.activeElement!==inp)tutup()},150)});
+  lukisSel();
+}
 function ikatChips(id,arr){var box=$('#'+id);if(!box)return;box.querySelectorAll('.chip').forEach(function(b){b.addEventListener('click',function(){var v=b.getAttribute('data-v'),i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr.push(v);b.setAttribute('aria-pressed',i<0)})})}
 function langkah(R,L){
   $('#stepBar').hidden=false;$('#step2bar').className=D.step===2?'on':'';
@@ -520,7 +568,7 @@ function langkah2(R,L){
   var guru=R.unit[D.unit]||[];
   var m=M('<form id="f2" style="display:flex;flex-direction:column;gap:14px" novalidate>'+
     '<h3 class="h3">Tindakan dan bukti</h3>'+
-    '<div class="f"><span class="lbl">Guru disiplin bertugas'+(D.unit?' ('+esc(cap(D.unit))+')':'')+'</span>'+(guru.length?chips('cGuru',guru,D.guruBertugas):'<p class="muted" style="margin:0;font-size:13px">Pilih unit dalam langkah 1 untuk memaparkan guru.</p>')+'</div>'+
+    '<div class="f"><span class="lbl">Guru disiplin bertugas'+(D.unit?' ('+esc(cap(D.unit))+')':'')+'</span>'+(guru.length?cariPilih('cGuru',guru,D.guruBertugas,'Taip nama guru… (boleh pilih lebih seorang)'):'<p class="muted" style="margin:0;font-size:13px">Pilih unit dalam langkah 1 untuk memaparkan guru.</p>')+'</div>'+
     '<div class="f"><span class="lbl">Tindakan diambil</span>'+chips('cTin',R.tindakan,D.tindakan)+'</div>'+
     '<div class="f"><span class="lbl">Gambar <span class="req">*</span> (2 diperlukan) dan dokumen sokongan</span><div class="upl">'+slot('gambar1','Gambar 1',IK_KAM)+slot('gambar2','Gambar 2',IK_KAM)+slot('dokumen','Dokumen',IK_DOK)+'</div>'+
     '<span class="muted" style="font-size:12px">Tekan untuk mengambil gambar atau memilih dari galeri. Gambar dikecilkan sebelum dihantar.</span></div>'+
@@ -532,7 +580,7 @@ function langkah2(R,L){
     (D.id?'':'<p class="note warn" style="margin:0">Selepas dihantar: PDF laporan dijana dan notifikasi dihantar ke kumpulan Telegram Unit Disiplin (tanpa nama penuh murid).</p>')+
     '<p class="err" id="e2" hidden></p></form>');
   lazy(m);
-  ikatChips('cGuru',D.guruBertugas);ikatChips('cTin',D.tindakan);
+  ikatCariPilih('cGuru',guru,D.guruBertugas);ikatChips('cTin',D.tindakan);
   var sasaran=null;
   m.querySelectorAll('.slot').forEach(function(b){b.addEventListener('click',function(){sasaran=b.getAttribute('data-k');$('#fileIn').click()})});
   $('#fileIn').addEventListener('change',function(e){
@@ -664,7 +712,7 @@ function vProfil(){
     '<p class="err" id="pErr" hidden></p><button class="btn pri" type="submit">Simpan kata laluan</button></form>'+
     '<button class="btn" id="bPasang2" type="button" hidden>Pasang aplikasi di telefon</button>'+
     '<button class="btn bad" id="bKeluar" type="button">Log keluar</button>'+
-    '<p class="muted" style="text-align:center;font-size:12px;margin:4px 0 0">MyDisiplin versi '+VERSI+' · Oleh Cikgu Henry Able Padtong</p>');
+    '<p class="muted" style="text-align:center;font-size:12px;margin:4px 0 0">MyDisiplin versi '+VERSI+' · Oleh - Cikgu HAP</p>');
   if(p.mestiTukar){$('#btnBack').hidden=true;$('#tabs').hidden=true}
   $('#bKeluar').onclick=function(){logKeluar()};
   if(pasangEvt){$('#bPasang2').hidden=false;$('#bPasang2').onclick=pasang}
