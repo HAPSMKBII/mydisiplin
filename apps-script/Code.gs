@@ -1,7 +1,7 @@
 /**
  * MyDisiplin – pelayan (Google Apps Script)
  * Laporan kes disiplin murid SMK Bugaya II Semporna
- * Versi 1.0.3 · Oleh Cikgu Henry Able Padtong
+ * Versi 1.0.4 · Oleh Cikgu Henry Able Padtong
  *
  * Serasi dengan AppSheet MYDISIPLIN26: menulis ke helaian LAPORAN yang sama,
  * ID 8 aksara, TARIKH sebagai tarikh, gambar dalam folder LAPORAN_Images aplikasi AppSheet.
@@ -10,7 +10,7 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0.3',
+  VERSI: '1.0.4',
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -523,7 +523,8 @@ function htmlPdf_(o) {
     (o.dokumen ? kotakGambar('DOKUMEN SOKONGAN:', dok) : '') +
     '</body></html>';
 }
-var LAJUR_IMEJ = { 'GAMBAR 1': [460, 260], 'GAMBAR 2': [460, 260], 'DOKUMEN SOKONGAN': [460, 300], 'TANDATANGAN PELAPOR': [200, 90] };
+var LAJUR_IMEJ = { 'GAMBAR 1': [400, 170], 'GAMBAR 2': [400, 170], 'DOKUMEN SOKONGAN': [400, 220], 'TANDATANGAN PELAPOR': [150, 55] };
+var TINGGI_BARIS = 15; // anggaran tinggi satu baris kosong dalam templat (pt)
 function reEsc_(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function ganti_(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); }
 /** Isi templat Google Docs AppSheet (<<[LAJUR]>>) dan pulangkan blob PDF. */
@@ -549,6 +550,14 @@ function pdfDariTemplat_(r, id) {
           var w = img.getWidth(), h = img.getHeight(), maks = LAJUR_IMEJ[lajur];
           var k = Math.min(1, maks[0] / w, maks[1] / h);
           img.setWidth(Math.round(w * k)).setHeight(Math.round(h * k));
+          // Buang baris kosong selepas imej supaya kotak templat tidak membesar ke halaman seterusnya
+          var buang = Math.ceil((Math.round(h * k) - TINGGI_BARIS) / TINGGI_BARIS);
+          var nx = induk.getNextSibling();
+          while (buang > 0 && nx && nx.getType() === DocumentApp.ElementType.PARAGRAPH &&
+                 nx.asParagraph().getText() === '' && nx.asParagraph().getNumChildren() <= 1 && nx.getNextSibling()) {
+            var seterusnya = nx.getNextSibling();
+            nx.removeFromParent(); buang--; nx = seterusnya;
+          }
         }
       });
       Object.keys(nilai).forEach(function (lajur) {
