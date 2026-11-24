@@ -1,7 +1,7 @@
 /**
  * MyDisiplin – pelayan (Google Apps Script)
  * Laporan kes disiplin murid SMK Bugaya II Semporna
- * Versi 1.0.2 · Oleh Cikgu Henry Able Padtong
+ * Versi 1.0.3 · Oleh Cikgu Henry Able Padtong
  *
  * Serasi dengan AppSheet MYDISIPLIN26: menulis ke helaian LAPORAN yang sama,
  * ID 8 aksara, TARIKH sebagai tarikh, gambar dalam folder LAPORAN_Images aplikasi AppSheet.
@@ -10,7 +10,7 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0.2',
+  VERSI: '1.0.3',
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -20,7 +20,9 @@ var KONFIG = {
   FOLDER_PDF: 'DISIPLINREPORT2026',
   PAUTAN_APLIKASI: 'https://hapsmkbii.github.io/mydisiplin/',
   PEMISAH: ' , ',                    // pemisah senarai yang digunakan AppSheet
-  ADMIN_AWAL: ['HENRY ABLE PADTONG'] // dijadikan ADMIN semasa "Isi pengguna"
+  ADMIN_AWAL: ['HENRY ABLE PADTONG'], // dijadikan ADMIN semasa "Isi pengguna"
+  // Templat Google Docs yang sama digunakan oleh bot AppSheet (JANA LAPORAN). Kosongkan untuk guna templat HTML ringkas.
+  TEMPLAT_DOC_ID: '1hMuf-u4pgCVmbQiRc1bLDjMjjnwreOTTtApWKmxpiOI'
 };
 
 var HELAIAN = {
@@ -521,11 +523,55 @@ function htmlPdf_(o) {
     (o.dokumen ? kotakGambar('DOKUMEN SOKONGAN:', dok) : '') +
     '</body></html>';
 }
+var LAJUR_IMEJ = { 'GAMBAR 1': [460, 260], 'GAMBAR 2': [460, 260], 'DOKUMEN SOKONGAN': [460, 300], 'TANDATANGAN PELAPOR': [200, 90] };
+function reEsc_(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function ganti_(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); }
+/** Isi templat Google Docs AppSheet (<<[LAJUR]>>) dan pulangkan blob PDF. */
+function pdfDariTemplat_(r, id) {
+  var o = bentukLaporan_(r);
+  var nilai = {};
+  Object.keys(r).forEach(function (k) { if (k !== '_baris') nilai[k] = teks_(r[k]); });
+  nilai['TARIKH'] = o.tarikh; nilai['MASA'] = o.masa;
+  var salinan = DriveApp.getFileById(KONFIG.TEMPLAT_DOC_ID).makeCopy('tmp-' + id, subFolder_(KONFIG.FOLDER_PDF));
+  try {
+    var doc = DocumentApp.openById(salinan.getId());
+    var bah = [doc.getBody(), doc.getHeader(), doc.getFooter()].filter(function (x) { return x; });
+    bah.forEach(function (b) {
+      Object.keys(LAJUR_IMEJ).forEach(function (lajur) {
+        var re = '<<\\[' + reEsc_(lajur) + '\\]>>', jumpa, had = 5;
+        while ((jumpa = b.findText(re)) && had-- > 0) {
+          var t = jumpa.getElement().asText();
+          t.deleteText(jumpa.getStartOffset(), jumpa.getEndOffsetInclusive());
+          var f = nilai[lajur] ? failIkutLaluan_(nilai[lajur]) : null;
+          if (!f) continue;
+          var induk = t.getParent();
+          var img = induk.insertInlineImage(induk.getChildIndex(t) + 1, f.getBlob());
+          var w = img.getWidth(), h = img.getHeight(), maks = LAJUR_IMEJ[lajur];
+          var k = Math.min(1, maks[0] / w, maks[1] / h);
+          img.setWidth(Math.round(w * k)).setHeight(Math.round(h * k));
+        }
+      });
+      Object.keys(nilai).forEach(function (lajur) {
+        if (LAJUR_IMEJ[lajur]) return;
+        b.replaceText('<<\\[' + reEsc_(lajur) + '\\]>>', ganti_(nilai[lajur]));
+      });
+      b.replaceText('<<[^>]*>>', '');
+    });
+    doc.saveAndClose();
+    return salinan.getAs('application/pdf').setName(id + '.pdf');
+  } finally {
+    salinan.setTrashed(true);
+  }
+}
 function janaPdf_(id) {
   var r = cariLaporan_(id);
   if (!r) throw new Error('Laporan tidak dijumpai.');
   var o = bentukLaporan_(r);
-  var pdf = HtmlService.createHtmlOutput(htmlPdf_(o)).getBlob().getAs('application/pdf').setName(id + '.pdf');
+  var pdf = null;
+  if (KONFIG.TEMPLAT_DOC_ID) {
+    try { pdf = pdfDariTemplat_(r, id); } catch (e) { console.log('Templat Docs gagal: ' + e); }
+  }
+  if (!pdf) pdf = HtmlService.createHtmlOutput(htmlPdf_(o)).getBlob().getAs('application/pdf').setName(id + '.pdf');
   var folder = subFolder_(KONFIG.FOLDER_PDF);
   var lama = folder.getFilesByName(id + '.pdf');
   while (lama.hasNext()) lama.next().setTrashed(true);

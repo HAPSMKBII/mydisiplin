@@ -15,6 +15,7 @@ function onOpen() {
     .addItem('Semak folder AppSheet', 'semakFolder')
     .addItem('Semak baris LAPORAN bermasalah', 'semakBaris')
     .addItem('Jana PDF yang belum ada', 'janaPdfTiada')
+    .addItem('Jana semula PDF buatan MyDisiplin', 'janaSemulaPdfMyDisiplin')
     .addItem('Tunjuk pautan aplikasi', 'tunjukPautan')
     .addToUi();
 }
@@ -114,6 +115,15 @@ function janaPdfTiada() {
     try { janaPdf_(L[i].id); n++; } catch (e) { gagal++; }
   }
   SpreadsheetApp.getUi().alert(n + ' PDF dijana' + (gagal ? ', ' + gagal + ' gagal' : '') + '. Baki: ' + (L.length - n - gagal) + (L.length - n - gagal > 0 ? ' (jalankan sekali lagi).' : '.'));
+}
+function janaSemulaPdfMyDisiplin() {
+  var mula = Date.now(), n = 0, gagal = 0;
+  var L = semuaLaporan_().filter(function (o) { return /drive\.google\.com/.test(o.pautan); });
+  for (var i = 0; i < L.length; i++) {
+    if (Date.now() - mula > 300000) break;
+    try { janaPdf_(L[i].id); n++; } catch (e) { gagal++; }
+  }
+  SpreadsheetApp.getUi().alert(n + ' daripada ' + L.length + ' PDF buatan MyDisiplin dijana semula' + (gagal ? ', ' + gagal + ' gagal' : '') + '.' + (n + gagal < L.length ? ' Jalankan sekali lagi untuk baki.' : ''));
 }
 function tunjukPautan() {
   SpreadsheetApp.getUi().alert('Aplikasi: ' + KONFIG.PAUTAN_APLIKASI + '\nPautan /exec: ' + ScriptApp.getService().getUrl());
