@@ -16,6 +16,7 @@ function onOpen() {
     .addItem('Semak baris LAPORAN bermasalah', 'semakBaris')
     .addItem('Jana PDF yang belum ada', 'janaPdfTiada')
     .addItem('Jana semula PDF buatan MyDisiplin', 'janaSemulaPdfMyDisiplin')
+    .addItem('Betulkan pautan PDF untuk AppSheet', 'betulkanPautanPdf')
     .addItem('Tunjuk pautan aplikasi', 'tunjukPautan')
     .addToUi();
 }
@@ -124,6 +125,16 @@ function janaSemulaPdfMyDisiplin() {
     try { janaPdf_(L[i].id); n++; } catch (e) { gagal++; }
   }
   SpreadsheetApp.getUi().alert(n + ' daripada ' + L.length + ' PDF buatan MyDisiplin dijana semula' + (gagal ? ', ' + gagal + ' gagal' : '') + '.' + (n + gagal < L.length ? ' Jalankan sekali lagi untuk baki.' : ''));
+}
+/** PDF yang dijana MyDisiplin sebelum v1.0.6: tukar lajur PDF daripada laluan /appsheet/... kepada pautan Drive. */
+function betulkanPautanPdf() {
+  var sh = helaian_(HELAIAN.LAPORAN), h = tajuk_(sh), cp = h.indexOf(PETA.pdf), n = 0;
+  semuaLaporan_().forEach(function (o) {
+    if (/drive\.google\.com/.test(o.pautan) && /^\/appsheet\//.test(o.pdf)) {
+      sh.getRange(o.baris, cp + 1).setValue(o.pautan); n++;
+    }
+  });
+  SpreadsheetApp.getUi().alert(n + ' baris dikemas kini. Lajur PDF kini memegang pautan Drive bagi PDF buatan MyDisiplin; PDF asal AppSheet tidak disentuh.');
 }
 function tunjukPautan() {
   SpreadsheetApp.getUi().alert('Aplikasi: ' + KONFIG.PAUTAN_APLIKASI + '\nPautan /exec: ' + ScriptApp.getService().getUrl());

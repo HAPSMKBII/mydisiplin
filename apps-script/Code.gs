@@ -1,7 +1,7 @@
 /**
  * MyDisiplin – pelayan (Google Apps Script)
  * Laporan kes disiplin murid SMK Bugaya II Semporna
- * Versi 1.0.5 · Oleh Cikgu Henry Able Padtong
+ * Versi 1.0.6 · Oleh Cikgu Henry Able Padtong
  *
  * Serasi dengan AppSheet MYDISIPLIN26: menulis ke helaian LAPORAN yang sama,
  * ID 8 aksara, TARIKH sebagai tarikh, gambar dalam folder LAPORAN_Images aplikasi AppSheet.
@@ -10,7 +10,7 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0.5',
+  VERSI: '1.0.6',
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -341,6 +341,8 @@ function ikutLaluan_(folder, bah, nama) {
 }
 /** 'LAPORAN_Images/abc.jpg' atau '/appsheet/data/<app>/DISIPLINREPORT2026/x.pdf' → File, atau null */
 function failIkutLaluan_(laluan) {
+  var u = String(laluan || '').match(/^https?:\/\/[^ ]*?(?:\/d\/|[?&]id=)([\w-]{20,})/);
+  if (u) { try { return DriveApp.getFileById(u[1]); } catch (e) { return null; } }
   laluan = String(laluan || '').replace(/^\/+/, '');
   if (!laluan) return null;
   var bah = laluan.split('/');
@@ -609,7 +611,9 @@ function janaPdf_(id) {
   var f = folder.createFile(pdf);
   var sh = helaian_(HELAIAN.LAPORAN), h = tajuk_(sh);
   var cp = h.indexOf(PETA.pdf), cu = h.indexOf(PETA.pautan);
-  if (cp >= 0) sh.getRange(r._baris, cp + 1).setValue('/appsheet/data/' + KONFIG.FOLDER_APP + '/' + KONFIG.FOLDER_PDF + '/' + id + '.pdf');
+  // Pautan Drive penuh (bukan laluan /appsheet/data/...): AppSheet tidak dapat melihat fail yang
+  // dicipta di luar AppSheet melalui laluan, tetapi boleh membuka pautan terus.
+  if (cp >= 0) sh.getRange(r._baris, cp + 1).setValue(f.getUrl());
   if (cu >= 0) sh.getRange(r._baris, cu + 1).setValue(f.getUrl());
   return f;
 }
