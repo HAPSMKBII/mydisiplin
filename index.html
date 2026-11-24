@@ -37,7 +37,7 @@ a{color:var(--navy)}
   padding:calc(env(safe-area-inset-top,0px) + 48px) max(24px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(24px,env(safe-area-inset-left,0px))}
 .log-in{max-width:420px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:24px;flex:1}
 .brand{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
-.brand img{width:96px;height:96px;border-radius:50%;background:#fff;object-fit:contain}
+.brand img{width:132px;height:132px;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(0,0,0,.35))}
 .brand h1{margin:0;font-family:var(--head);font-size:34px}
 .brand p{margin:0;color:#d4e2f4}
 .panel{background:var(--card);color:var(--ink);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px}
@@ -169,7 +169,7 @@ dl.dt dt:nth-last-of-type(1),dl.dt dd:last-child{border-bottom:0}
 <section id="log" hidden>
   <div class="log-in">
     <div class="brand">
-      <img src="lencana.png" alt="Lencana Unit Disiplin SMK Bugaya II" onerror="this.style.visibility='hidden'">
+      <img src="lencana.png" alt="Lencana SMK Bugaya II Semporna" onerror="this.style.visibility='hidden'">
       <h1>MyDisiplin</h1>
       <p>Laporan kes disiplin murid<br>SMK Bugaya II Semporna</p>
     </div>
@@ -218,7 +218,7 @@ dl.dt dt:nth-last-of-type(1),dl.dt dd:last-child{border-bottom:0}
 <script>
 (function(){
 "use strict";
-var VERSI='1.0.1';
+var VERSI='1.0.2';
 var $=function(s){return document.querySelector(s)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}}
