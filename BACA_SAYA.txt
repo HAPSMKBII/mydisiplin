@@ -1,0 +1,13 @@
+MyDisiplin – Laporan kes disiplin murid SMK Bugaya II Semporna
+Versi 1.0 · Oleh Cikgu Henry Able Padtong
+
+Aplikasi telefon (PWA) untuk guru. Data kekal dalam Google Sheet MYDISIPLIN26 milik pentadbir;
+gambar dan PDF kekal dalam folder Drive aplikasi AppSheet. Repo ini hanya menyimpan "kulit" aplikasi.
+
+Fail:
+- index.html, sw.js, manifest.webmanifest, ikon, lencana.png  : aplikasi telefon
+- tetapan.js        : pautan Web App Apps Script (/exec)
+- apps-script/      : Code.gs dan Setup.gs (salinan rujukan; yang berjalan berada dalam projek Apps Script Sheet)
+
+Kemas kini aplikasi: ubah index.html, naikkan VERSI dalam sw.js dan VERSI dalam index.html.
+Kemas kini pelayan: tampal Code.gs baharu dalam Apps Script › Deploy › Manage deployments › ✏ › New version.
