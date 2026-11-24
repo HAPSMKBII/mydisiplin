@@ -117,14 +117,27 @@ function janaPdfTiada() {
   }
   SpreadsheetApp.getUi().alert(n + ' PDF dijana' + (gagal ? ', ' + gagal + ' gagal' : '') + '. Baki: ' + (L.length - n - gagal) + (L.length - n - gagal > 0 ? ' (jalankan sekali lagi).' : '.'));
 }
+/** Jana semula PDF buatan MyDisiplin secara berperingkat: setiap larian menyambung dari tempat terakhir. */
 function janaSemulaPdfMyDisiplin() {
-  var mula = Date.now(), n = 0, gagal = 0;
-  var L = semuaLaporan_().filter(function (o) { return /drive\.google\.com/.test(o.pautan); });
-  for (var i = 0; i < L.length; i++) {
-    if (Date.now() - mula > 300000) break;
-    try { janaPdf_(L[i].id); n++; } catch (e) { gagal++; }
-  }
-  SpreadsheetApp.getUi().alert(n + ' daripada ' + L.length + ' PDF buatan MyDisiplin dijana semula' + (gagal ? ', ' + gagal + ' gagal' : '') + '.' + (n + gagal < L.length ? ' Jalankan sekali lagi untuk baki.' : ''));
+  var ui = SpreadsheetApp.getUi(), p = PropertiesService.getScriptProperties();
+  var kunci = LockService.getScriptLock();
+  if (!kunci.tryLock(1000)) { ui.alert('Proses jana semula masih berjalan. Tunggu sehingga selesai (lihat Apps Script › Executions), kemudian jalankan menu ini sekali lagi.'); return; }
+  try {
+    var siap = {};
+    try { siap = JSON.parse(p.getProperty('JANA_SEMULA_SIAP') || '{}'); } catch (e) { siap = {}; }
+    var L = semuaLaporan_().filter(function (o) { return /drive\.google\.com/.test(o.pautan) && !siap[o.id]; });
+    var mula = Date.now(), n = 0, gagal = 0;
+    for (var i = 0; i < L.length; i++) {
+      if (Date.now() - mula > 240000) break;          // berhenti selamat sebelum had masa Apps Script
+      try { janaPdf_(L[i].id); n++; } catch (e) { gagal++; }
+      siap[L[i].id] = 1;
+      p.setProperty('JANA_SEMULA_SIAP', JSON.stringify(siap));
+    }
+    var baki = L.length - n - gagal;
+    if (baki <= 0) p.deleteProperty('JANA_SEMULA_SIAP');
+    ui.alert(n + ' PDF dijana semula' + (gagal ? ', ' + gagal + ' gagal' : '') + '. ' +
+      (baki > 0 ? 'Baki ' + baki + ': jalankan menu ini sekali lagi untuk menyambung.' : 'Selesai: semua PDF buatan MyDisiplin sudah dijana semula.'));
+  } finally { kunci.releaseLock(); }
 }
 /** PDF yang dijana MyDisiplin sebelum v1.0.6: tukar lajur PDF daripada laluan /appsheet/... kepada pautan Drive. */
 function betulkanPautanPdf() {
