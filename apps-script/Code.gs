@@ -1,7 +1,7 @@
 /**
  * MyDisiplin – pelayan (Google Apps Script)
  * Laporan kes disiplin murid SMK Bugaya II Semporna
- * Versi 1.0.1 · Oleh Cikgu Henry Able Padtong
+ * Versi 1.0.2 · Oleh Cikgu Henry Able Padtong
  *
  * Serasi dengan AppSheet MYDISIPLIN26: menulis ke helaian LAPORAN yang sama,
  * ID 8 aksara, TARIKH sebagai tarikh, gambar dalam folder LAPORAN_Images aplikasi AppSheet.
@@ -10,7 +10,7 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0.1',
+  VERSI: '1.0.2',
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -501,22 +501,24 @@ function htmlPdf_(o) {
     return '<tr><td bgcolor="' + biru + '" style="' + td + 'width:32%;background:' + biru + ';color:#fff;font-weight:bold"><font color="#ffffff">' + esc_(b[0]) + '</font></td>' +
       '<td bgcolor="' + latar + '" style="' + td + 'background:' + latar + '">' + esc_(b[1]) + '</td></tr>';
   }).join('');
-  var ttd = imejPdf_(o.tandatangan), g1 = imejPdf_(o.gambar1), g2 = imejPdf_(o.gambar2);
+  var ttd = imejPdf_(o.tandatangan), g1 = imejPdf_(o.gambar1), g2 = imejPdf_(o.gambar2), dok = o.dokumen ? imejPdf_(o.dokumen) : '';
   function kotakGambar(tajuk, src) {
-    return '<table style="width:100%;border-collapse:collapse;margin:0 0 18px"><tr><td bgcolor="#1155cc" style="' + td + 'background:#1155cc;color:#fff;font-weight:bold"><font color="#ffffff">' + tajuk + '</font>' +
+    return '<table style="width:100%;border-collapse:collapse;margin:0 0 18px;page-break-inside:avoid"><tr><td bgcolor="#1155cc" style="' + td + 'background:#1155cc;color:#fff;font-weight:bold"><font color="#ffffff">' + tajuk + '</font>' +
       '</td></tr><tr><td bgcolor="' + latar + '" style="' + td + 'background:' + latar + ';text-align:center;height:250px">' +
       (src ? '<img src="' + src + '" style="max-width:100%;max-height:245px">' : '(tiada gambar)') + '</td></tr></table>';
   }
+  var kepala = '<div style="text-align:center;margin-top:10px"><div style="font-family:\'Times New Roman\',serif;font-weight:bold;font-size:15pt;color:#1a1aa6">LAPORAN KES DISIPLIN MURID ' + esc_(KONFIG.NAMA_SEKOLAH.toUpperCase()) + '</div>' +
+    '<div style="text-align:right;font-style:italic;font-weight:bold;font-size:8.5pt;color:#555">Hak Milik Unit Disiplin SMK Bugaya II</div></div>';
   return '<html><head><meta charset="utf-8"><style>@page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;background:' + latar + ';color:#000}</style></head><body bgcolor="' + latar + '" style="background:' + latar + '">' +
-    '<div style="text-align:center;margin-top:10px"><div style="font-family:\'Times New Roman\',serif;font-weight:bold;font-size:15pt;color:#1a1aa6">LAPORAN KES DISIPLIN MURID ' + esc_(KONFIG.NAMA_SEKOLAH.toUpperCase()) + '</div>' +
-    '<div style="text-align:right;font-style:italic;font-weight:bold;font-size:8.5pt;color:#555">Hak Milik Unit Disiplin SMK Bugaya II</div></div>' +
+    kepala +
     '<table style="width:100%;border-collapse:collapse;margin-top:22px">' + jadual + '</table>' +
     '<table style="width:52%;border-collapse:collapse;margin-top:40px"><tr><td bgcolor="' + biru + '" style="' + td + 'background:' + biru + ';color:#fff;font-weight:bold"><font color="#ffffff">TANDATANGAN PELAPOR:</font></td></tr>' +
     '<tr><td bgcolor="' + latar + '" style="' + td + 'background:' + latar + ';height:150px">' + (ttd ? '<img src="' + ttd + '" style="max-height:110px;max-width:100%"><br>' : '<br><br><br><br>') +
     '(' + esc_(o.pelapor) + ')</td></tr></table>' +
-    '<div style="page-break-before:always"></div>' +
-    '<div style="font-weight:bold;font-size:11pt;margin:10px 0 12px">LAPORAN BERGAMBAR</div>' +
+    '<div style="page-break-before:always"></div>' + kepala +
+    '<div style="font-weight:bold;font-size:11pt;margin:28px 0 12px">LAPORAN BERGAMBAR</div>' +
     kotakGambar('GAMBAR 1:', g1) + kotakGambar('GAMBAR 2:', g2) +
+    (o.dokumen ? kotakGambar('DOKUMEN SOKONGAN:', dok) : '') +
     '</body></html>';
 }
 function janaPdf_(id) {
