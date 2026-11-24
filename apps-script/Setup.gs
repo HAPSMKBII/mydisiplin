@@ -67,7 +67,7 @@ function tetapkanTelegram() {
   var a = ui.prompt('Token bot Telegram', 'Tampal token daripada @BotFather (contoh 123456:ABC-…):', ui.ButtonSet.OK_CANCEL);
   if (a.getSelectedButton() !== ui.Button.OK) return;
   var tok = a.getResponseText().trim();
-  if (tok) p.setProperty('TELEGRAM_TOKEN', tok);
+  if (tok) p.setProperty('TELEGRAM_TOKEN', tok.replace(/\s+/g, ''));
   var b = ui.prompt('Chat ID kumpulan', 'Tampal Chat ID (biasanya bermula dengan -100…). Biarkan kosong jika belum tahu; guna menu 4.', ui.ButtonSet.OK_CANCEL);
   if (b.getSelectedButton() === ui.Button.OK && b.getResponseText().trim()) p.setProperty('TELEGRAM_CHAT_ID', b.getResponseText().trim());
   ui.alert('Disimpan. Token disimpan dalam tetapan skrip, bukan dalam Sheet.');
@@ -76,7 +76,8 @@ function cariChatId() {
   var tok = PropertiesService.getScriptProperties().getProperty('TELEGRAM_TOKEN');
   var ui = SpreadsheetApp.getUi();
   if (!tok) { ui.alert('Tetapkan token dahulu (menu 3).'); return; }
-  var j = JSON.parse(UrlFetchApp.fetch('https://api.telegram.org/bot' + tok + '/getUpdates', { muteHttpExceptions: true }).getContentText() || '{}');
+  var j = JSON.parse(UrlFetchApp.fetch('https://api.telegram.org/bot' + tok.trim() + '/getUpdates?allowed_updates=' + encodeURIComponent('["message","my_chat_member","channel_post"]'), { muteHttpExceptions: true }).getContentText() || '{}');
+  if (!j.ok) { ui.alert('Telegram menolak permintaan: ' + (j.description || 'tiada jawapan') + (j.error_code === 401 ? '\n\nToken salah. Salin semula token daripada @BotFather (menu 3).' : j.error_code === 409 ? '\n\nBot ini mempunyai webhook. Buka @BotFather atau padam webhook dahulu.' : '')); return; }
   var seen = {}, out = [];
   (j.result || []).forEach(function (u) {
     var m = u.message || u.channel_post || u.my_chat_member;
