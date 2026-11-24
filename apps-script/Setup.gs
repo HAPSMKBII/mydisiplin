@@ -95,8 +95,11 @@ function ujiTelegram() {
 function semakFolder() {
   var ui = SpreadsheetApp.getUi();
   try {
-    var f = folderApp_();
-    ui.alert('Folder AppSheet dijumpai: ' + f.getName() + '\nGambar baharu akan disimpan dalam ' + KONFIG.FOLDER_GAMBAR + ', PDF dalam ' + KONFIG.FOLDER_PDF + '.');
+    var f = folderApp_(), g = folderGambar_();
+    var L = bacaSemua_(HELAIAN.LAPORAN), cuba = 0, jumpa = 0;
+    for (var i = L.length - 1; i >= 0 && cuba < 5; i--) { var p = teks_(L[i]['GAMBAR 1']); if (!p) continue; cuba++; if (failIkutLaluan_(p)) jumpa++; }
+    var induk = g.getParents(), nIn = induk.hasNext() ? induk.next().getName() : '?';
+    ui.alert('Folder AppSheet: ' + f.getName() + '\nFolder gambar: ' + nIn + ' / ' + g.getName() + '\nUjian: ' + jumpa + ' daripada ' + cuba + ' gambar terkini dijumpai.\nPDF disimpan dalam ' + KONFIG.FOLDER_PDF + '.');
   } catch (e) { ui.alert(e.message + '\n\nSemak nama folder dalam KONFIG.FOLDER_APP (Code.gs).'); }
 }
 function semakBaris() {

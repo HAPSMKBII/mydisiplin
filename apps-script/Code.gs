@@ -1,7 +1,7 @@
 /**
  * MyDisiplin – pelayan (Google Apps Script)
  * Laporan kes disiplin murid SMK Bugaya II Semporna
- * Versi 1.0 · Oleh Cikgu Henry Able Padtong
+ * Versi 1.0.1 · Oleh Cikgu Henry Able Padtong
  *
  * Serasi dengan AppSheet MYDISIPLIN26: menulis ke helaian LAPORAN yang sama,
  * ID 8 aksara, TARIKH sebagai tarikh, gambar dalam folder LAPORAN_Images aplikasi AppSheet.
@@ -10,7 +10,7 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0',
+  VERSI: '1.0.1',
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -297,21 +297,66 @@ function subFolder_(nama) {
   var app = folderApp_(), it = app.getFoldersByName(nama);
   return it.hasNext() ? it.next() : app.createFolder(nama);
 }
-/** 'LAPORAN_Images/abc.jpg' → File, atau null */
-function failIkutLaluan_(laluan) {
-  laluan = String(laluan || '').replace(/^\/+/, '');
-  var bah = laluan.split('/');
-  var nama = bah.pop();
-  var folder = folderApp_();
-  var awal = bah.indexOf(KONFIG.FOLDER_APP);
-  if (awal >= 0) bah = bah.slice(awal + 1);
+/** Folder asas untuk laluan relatif: folder yang mengandungi Sheet, kemudian folder aplikasi AppSheet. */
+function folderAsas_() {
+  var out = [], ids = {};
+  try {
+    var it = DriveApp.getFileById(ss_().getId()).getParents();
+    while (it.hasNext()) { var f = it.next(); if (!ids[f.getId()]) { ids[f.getId()] = 1; out.push(f); } }
+  } catch (e) { }
+  try { var a = folderApp_(); if (!ids[a.getId()]) out.push(a); } catch (e) { }
+  return out;
+}
+/** Folder LAPORAN_Images yang sama digunakan AppSheet (dicari sekali, kemudian diingati). */
+function folderGambar_() {
+  var p = PropertiesService.getScriptProperties(), id = p.getProperty('FOLDER_GAMBAR_ID');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { } }
+  var asas = folderAsas_(), f = null;
+  for (var i = 0; i < asas.length && !f; i++) { var it = asas[i].getFoldersByName(KONFIG.FOLDER_GAMBAR); if (it.hasNext()) f = it.next(); }
+  if (!f) {
+    // Cari melalui fail gambar sedia ada dalam LAPORAN
+    var L = bacaSemua_(HELAIAN.LAPORAN);
+    for (var j = L.length - 1; j >= 0 && !f; j--) {
+      var nm = teks_(L[j]['GAMBAR 1']).split('/').pop();
+      if (!nm) continue;
+      var fi = DriveApp.getFilesByName(nm);
+      if (fi.hasNext()) { var pi = fi.next().getParents(); if (pi.hasNext()) f = pi.next(); }
+    }
+  }
+  if (!f) f = (asas[0] || folderApp_()).createFolder(KONFIG.FOLDER_GAMBAR);
+  p.setProperty('FOLDER_GAMBAR_ID', f.getId());
+  return f;
+}
+function ikutLaluan_(folder, bah, nama) {
   for (var i = 0; i < bah.length; i++) {
     var it = folder.getFoldersByName(bah[i]);
     if (!it.hasNext()) return null;
     folder = it.next();
   }
   var f = folder.getFilesByName(nama);
-  return f.hasNext() ? f.next() : null;
+  while (f.hasNext()) { var x = f.next(); if (!x.isTrashed || !x.isTrashed()) return x; }
+  return null;
+}
+/** 'LAPORAN_Images/abc.jpg' atau '/appsheet/data/<app>/DISIPLINREPORT2026/x.pdf' → File, atau null */
+function failIkutLaluan_(laluan) {
+  laluan = String(laluan || '').replace(/^\/+/, '');
+  if (!laluan) return null;
+  var bah = laluan.split('/');
+  var nama = bah.pop(), x;
+  var awal = bah.indexOf(KONFIG.FOLDER_APP);
+  if (awal >= 0) {
+    try { x = ikutLaluan_(folderApp_(), bah.slice(awal + 1), nama); if (x) return x; } catch (e) { }
+  } else {
+    if (bah.length === 1 && bah[0] === KONFIG.FOLDER_GAMBAR) {
+      try { x = ikutLaluan_(folderGambar_(), [], nama); if (x) return x; } catch (e) { }
+    }
+    var asas = folderAsas_();
+    for (var i = 0; i < asas.length; i++) { x = ikutLaluan_(asas[i], bah, nama); if (x) return x; }
+  }
+  // Pilihan terakhir: cari ikut nama fail (nama AppSheet mengandungi ID + masa, jadi unik)
+  var g = DriveApp.getFilesByName(nama);
+  while (g.hasNext()) { x = g.next(); if (!x.isTrashed || !x.isTrashed()) return x; }
+  return null;
 }
 function dataUrl_(blob) {
   return 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
@@ -333,7 +378,7 @@ function simpanFail_(dataUrl, id, lajur) {
   var ext = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'application/pdf': '.pdf' }[jenis];
   var nama = id + '.' + lajur + '.' + Utilities.formatDate(new Date(), zon_(), 'HHmmss') + ext;
   var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), jenis, nama);
-  subFolder_(KONFIG.FOLDER_GAMBAR).createFile(blob);
+  folderGambar_().createFile(blob);
   return KONFIG.FOLDER_GAMBAR + '/' + nama;
 }
 
