@@ -1,7 +1,7 @@
 /**
  * MyDisiplin – pelayan (Google Apps Script)
  * Laporan kes disiplin murid SMK Bugaya II Semporna
- * Versi 1.0.9 · Oleh Cikgu Henry Able Padtong
+ * Versi 1.0.11 · Oleh Cikgu Henry Able Padtong
  *
  * Serasi dengan AppSheet MYDISIPLIN26: menulis ke helaian LAPORAN yang sama,
  * ID 8 aksara, TARIKH sebagai tarikh, gambar dalam folder LAPORAN_Images aplikasi AppSheet.
@@ -10,7 +10,12 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0.10',
+  VERSI: '1.0.11',
+  // Cache pelayan (saat). Data LAPORAN juga dibatalkan serta-merta apabila laporan dihantar/diubah/dipadam
+  // atau Sheet disunting dengan tangan. Suntingan melalui AppSheet kelihatan selepas tempoh ini (atau butang Muat semula).
+  CACHE_LAPORAN_SAAT: 600,
+  CACHE_RUJUKAN_SAAT: 21600,
+  CACHE_PROFIL_SAAT: 300,
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -74,8 +79,11 @@ function doGet() {
 
 /* ===================== Utiliti helaian ===================== */
 
-function ss_() { return SpreadsheetApp.getActive(); }
-function zon_() { return ss_().getSpreadsheetTimeZone() || 'Asia/Kuala_Lumpur'; }
+var SS_ = null;
+function ss_() { return SS_ || (SS_ = SpreadsheetApp.getActive()); }
+var ZON_ = null;
+// Diingati sekali setiap panggilan: dahulu dipanggil untuk setiap sel tarikh/masa (beribu panggilan ke Sheet).
+function zon_() { return ZON_ || (ZON_ = ss_().getSpreadsheetTimeZone() || 'Asia/Kuala_Lumpur'); }
 function helaian_(nama) {
   var sh = ss_().getSheetByName(nama);
   if (!sh) throw new Error('Helaian "' + nama + '" tidak dijumpai.');
@@ -134,6 +142,66 @@ function pastikanLajur_(sh, senarai) {
   return tajuk_(sh);
 }
 
+/* ===================== Cache (mempercepatkan aplikasi) ===================== */
+
+// CacheService menghadkan satu nilai kepada 100 KB, jadi data besar dipecah kepada cebisan.
+var CEBISAN = 30000;
+function cache_() { return CacheService.getScriptCache(); }
+function cacheBaca_(kunci) {
+  var c = cache_(), n = +(c.get(kunci + '_n') || 0);
+  if (!n) return null;
+  var ks = [];
+  for (var i = 0; i < n; i++) ks.push(kunci + '_' + i);
+  var m = c.getAll(ks), s = '';
+  for (var j = 0; j < n; j++) { if (m[ks[j]] == null) return null; s += m[ks[j]]; }
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+function cacheSimpan_(kunci, obj, saat, gen) {
+  try {
+    var c = cache_();
+    if (gen !== undefined && c.get(kunci + '_gen') !== gen) return; // data berubah semasa membaca: jangan simpan
+    var s = JSON.stringify(obj), o = {}, n = 0;
+    for (var i = 0; i < s.length; i += CEBISAN) o[kunci + '_' + (n++)] = s.substr(i, CEBISAN);
+    c.putAll(o, saat);
+    c.put(kunci + '_n', String(n), saat);
+  } catch (e) { console.log('Cache gagal: ' + e); }
+}
+function cacheGen_(kunci) { return cache_().get(kunci + '_gen'); }
+function cacheBuang_(kunci) {
+  try { var c = cache_(); c.put(kunci + '_gen', Utilities.getUuid(), 21600); c.remove(kunci + '_n'); } catch (e) { }
+}
+/** Simple trigger: batalkan cache apabila Sheet disunting dengan tangan. */
+function onEdit(e) {
+  try {
+    var sh = e && e.range && e.range.getSheet(), nama = sh ? sh.getName() : '';
+    if (nama === HELAIAN.LAPORAN) cacheBuang_('lap');
+    else if (nama === HELAIAN.PENGGUNA) {
+      var c = tajuk_(sh).indexOf('ID');
+      if (c >= 0 && e.range.getRow() > 1) {
+        sh.getRange(e.range.getRow(), c + 1, e.range.getNumRows(), 1).getValues().forEach(function (v) {
+          cache_().remove('prof_' + String(v[0]).trim().toLowerCase());
+        });
+      }
+    } else if ([HELAIAN.MURID, HELAIAN.KESALAHAN, HELAIAN.UNIT, HELAIAN.PELAPOR, HELAIAN.TINDAKAN, HELAIAN.PUNCA,
+      HELAIAN.TEMPAT, HELAIAN.GURUKELAS].indexOf(nama) >= 0) cacheBuang_('ruj');
+  } catch (err) { }
+}
+/** Pemicu masa: isi semula cache setiap 10 minit supaya guru jarang menunggu bacaan Sheet. */
+function panaskan() {
+  try { laporanRingkas_(true); } catch (e) { console.log('panaskan lap: ' + e); }
+  try { rujukanData_(false); } catch (e) { console.log('panaskan ruj: ' + e); }
+}
+/** Jalankan SEKALI dari editor (pilih pasangPemanas › Run). */
+function pasangPemanas() {
+  buangPemanas();
+  ScriptApp.newTrigger('panaskan').timeBased().everyMinutes(10).create();
+  panaskan();
+  return 'Pemanas dipasang: cache diisi semula setiap 10 minit.';
+}
+function buangPemanas() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'panaskan') ScriptApp.deleteTrigger(t); });
+}
+
 /* ===================== Sesi & kata laluan ===================== */
 
 function hash_(salt, kata) {
@@ -152,6 +220,7 @@ function tulisPengguna_(p, medan) {
     var c = h.indexOf(k);
     if (c >= 0) sh.getRange(p._baris, c + 1).setValue(medan[k]);
   });
+  cache_().remove('prof_' + String(p['ID']).trim().toLowerCase());
 }
 function bentukProfil_(p) {
   return { id: String(p['ID']).trim(), nama: String(p['NAMA']).trim(), peranan: String(p['PERANAN'] || 'GURU').trim().toUpperCase(),
@@ -190,10 +259,16 @@ function sesi_(token) {
   var c = CacheService.getScriptCache();
   var id = token && c.get('sesi_' + token);
   if (!id) throw new Error('SESI_TAMAT');
-  var p = penggunaIkutId_(id);
-  if (!p || String(p['AKTIF']).toUpperCase() === 'TIDAK') throw new Error('SESI_TAMAT');
+  var prof = null;
+  try { prof = JSON.parse(c.get('prof_' + id) || 'null'); } catch (e) { }
+  if (!prof) {
+    var p = penggunaIkutId_(id);
+    if (!p || String(p['AKTIF']).toUpperCase() === 'TIDAK') throw new Error('SESI_TAMAT');
+    prof = bentukProfil_(p);
+    c.put('prof_' + id, JSON.stringify(prof), KONFIG.CACHE_PROFIL_SAAT);
+  }
   c.put('sesi_' + token, id, KONFIG.TEMPOH_SESI_SAAT);
-  return bentukProfil_(p);
+  return prof;
 }
 function adminSahaja_(u) { if (u.peranan !== 'ADMIN') throw new Error('Hanya admin boleh melakukan tindakan ini.'); }
 function profil(token) { return sesi_(token); }
@@ -229,8 +304,18 @@ function kumpul_(nama, kunci, nilai) {
   });
   return o;
 }
-function rujukan(token) {
+function rujukan(token, segar) {
   sesi_(token);
+  return rujukanData_(!!segar);
+}
+function rujukanData_(segar) {
+  if (!segar) { var ada = cacheBaca_('ruj'); if (ada) return ada; }
+  var gen = cacheGen_('ruj');
+  var d = rujukanBaca_();
+  cacheSimpan_('ruj', d, KONFIG.CACHE_RUJUKAN_SAAT, gen);
+  return d;
+}
+function rujukanBaca_() {
   var murid = bacaSemua_(HELAIAN.MURID).map(function (r) {
     return [teks_(r['KELAS']), teks_(r['NAMA']), teks_(r['GURU KELAS / PENOLONG'])];
   }).filter(function (m) { return m[0] && m[1]; });
@@ -261,25 +346,52 @@ function bentukLaporan_(r) {
   return o;
 }
 function semuaLaporan_() { return bacaSemua_(HELAIAN.LAPORAN).filter(function (r) { return teks_(r['ID']); }).map(bentukLaporan_); }
+/** Cari satu laporan ikut ID dengan TextFinder (hanya baris itu dibaca, bukan seluruh helaian). */
 function cariLaporan_(id) {
+  id = String(id == null ? '' : id).trim();
+  if (!id) return null;
+  try {
+    var sh = helaian_(HELAIAN.LAPORAN), h = tajuk_(sh), c = h.indexOf('ID'), n = sh.getLastRow();
+    if (c >= 0 && n >= 2) {
+      var jumpa = sh.getRange(2, c + 1, n - 1, 1).createTextFinder(id).matchCase(true).matchEntireCell(true).findAll();
+      for (var k = 0; k < jumpa.length; k++) {
+        var b = jumpa[k].getRow(), v = sh.getRange(b, 1, 1, h.length).getValues()[0];
+        if (teks_(v[c]) !== id) continue;
+        var o = { _baris: b };
+        for (var j = 0; j < h.length; j++) if (h[j]) o[h[j]] = v[j];
+        return o;
+      }
+    }
+  } catch (e) { console.log('TextFinder gagal: ' + e); }
+  return cariLaporanPenuh_(id);
+}
+function cariLaporanPenuh_(id) {
   var L = bacaSemua_(HELAIAN.LAPORAN);
   for (var i = 0; i < L.length; i++) if (teks_(L[i]['ID']) === String(id)) return L[i];
   return null;
 }
-function senarai(token) {
-  sesi_(token);
-  return semuaLaporan_().map(function (o) {
+/** Senarai ringkas semua laporan, disimpan dalam cache pelayan. segar = abaikan cache. */
+function laporanRingkas_(segar) {
+  if (!segar) { var ada = cacheBaca_('lap'); if (ada) return ada; }
+  var gen = cacheGen_('lap');
+  var L = semuaLaporan_().map(function (o) {
     return { id: o.id, kelas: o.kelas, nama: o.nama, kategori: o.kategori, perincian: o.perincian, tarikh: o.tarikh,
       tarikhIso: o.tarikhIso, masa: o.masa, tempat: o.tempat, pelapor: o.pelapor, unit: o.unit,
       gambar1: o.gambar1, tindakan: o.tindakan, ada_pdf: !!(o.pdf || o.pautan), rosak: o.rosak };
   });
+  cacheSimpan_('lap', L, KONFIG.CACHE_LAPORAN_SAAT, gen);
+  return L;
+}
+function senarai(token, segar) {
+  sesi_(token);
+  return laporanRingkas_(!!segar);
 }
 function butiran(token, id) {
   var u = sesi_(token);
   var r = cariLaporan_(id);
   if (!r) throw new Error('Laporan tidak dijumpai. Mungkin telah dipadam.');
   var o = bentukLaporan_(r);
-  o.bilKesMurid = o.nama ? semuaLaporan_().filter(function (x) { return x.nama === o.nama && x.kelas === o.kelas; }).length : 0;
+  o.bilKesMurid = o.nama ? laporanRingkas_(false).filter(function (x) { return x.nama === o.nama && x.kelas === o.kelas; }).length : 0;
   o.bolehUbah = u.peranan === 'ADMIN';
   return o;
 }
@@ -369,9 +481,13 @@ function gambar(token, laluan, kecil) {
   sesi_(token);
   laluan = String(laluan || '');
   if (laluan.indexOf('..') >= 0) throw new Error('Laluan tidak sah.');
+  var kunci = kecil ? 'th_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, laluan)) : '';
+  if (kunci) { var ada = cacheBaca_(kunci); if (ada) return ada; }
   var f = failIkutLaluan_(laluan);
   if (!f) return '';
-  if (kecil) { try { var t = f.getThumbnail(); if (t) return dataUrl_(t); } catch (e) { } }
+  if (kecil) {
+    try { var t = f.getThumbnail(); if (t) { var u = dataUrl_(t); cacheSimpan_(kunci, u, 21600); return u; } } catch (e) { }
+  }
   return dataUrl_(f.getBlob());
 }
 function simpanFail_(dataUrl, id, lajur) {
@@ -421,6 +537,7 @@ function hantar(token, d, fail) {
     c = h.indexOf(PETA.pelapor); if (c >= 0) row[c] = selamat_(d.pelapor || u.nama);
     Object.keys(laluan).forEach(function (k) { var j = h.indexOf(MEDAN_FAIL[k]); if (j >= 0) row[j] = laluan[k]; });
     sh.appendRow(row);
+    cacheBuang_('lap');
   } finally { lock.releaseLock(); }
   var hasil = { id: id, pdf: false, telegram: false };
   try { janaPdf_(id); hasil.pdf = true; } catch (e) { hasil.ralatPdf = String(e.message || e); }
@@ -444,6 +561,7 @@ function ubah(token, id, d, fail) {
     if (d.pelapor) { var c = h.indexOf(PETA.pelapor); if (c >= 0) row[c] = selamat_(d.pelapor); }
     Object.keys(laluan).forEach(function (k) { var j = h.indexOf(MEDAN_FAIL[k]); if (j >= 0) row[j] = laluan[k]; });
     sh.getRange(r._baris, 1, 1, h.length).setValues([row]);
+    cacheBuang_('lap');
   } finally { lock.releaseLock(); }
   var hasil = { id: id, pdf: false };
   try { janaPdf_(id); hasil.pdf = true; } catch (e) { hasil.ralatPdf = String(e.message || e); }
@@ -465,6 +583,7 @@ function padam(token, id) {
     }
     arkib.appendRow(nilai.concat([u.nama, new Date()]));
     sh.deleteRow(r._baris);
+    cacheBuang_('lap');
   } finally { lock.releaseLock(); }
   return true;
 }
@@ -615,6 +734,7 @@ function janaPdf_(id) {
   // dicipta di luar AppSheet melalui laluan, tetapi boleh membuka pautan terus.
   if (cp >= 0) sh.getRange(r._baris, cp + 1).setValue(f.getUrl());
   if (cu >= 0) sh.getRange(r._baris, cu + 1).setValue(f.getUrl());
+  cacheBuang_('lap');
   return f;
 }
 
