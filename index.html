@@ -233,7 +233,7 @@ dl.dt dt:nth-last-of-type(1),dl.dt dd:last-child{border-bottom:0}
 <script>
 (function(){
 "use strict";
-var VERSI='1.0.5';
+var VERSI='1.0.6';
 var $=function(s){return document.querySelector(s)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}}
@@ -353,7 +353,7 @@ function vUtama(){
       '<div class="grid2">'+
       tile('#senarai','Senarai laporan','Dokumentasi dan susulan','<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>')+
       tile('#takwim','Takwim kes','Kes mengikut tarikh','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>')+
-      tile('#statistik','Statistik','Kategori, perincian, murid, kelas','<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')+
+      tile('#statistik','Statistik','Kategori, perincian, hukuman, murid, kelas','<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')+
       tile('#rujukan','Rujukan guru','Unit disiplin, guru kelas','<circle cx="9" cy="8" r="3.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5"/>')+'</div>'+
       '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px"><h3 class="h3">Laporan terkini</h3><a href="#senarai" style="font-size:13px;font-weight:600">Lihat semua</a></div>'+
       '<div style="display:flex;flex-direction:column;gap:8px">'+(L.slice(0,4).map(rowHTML).join('')||'<p class="muted">Belum ada laporan.</p>')+'</div>');
@@ -661,7 +661,7 @@ function vStatistik(){
     var thnL=uniq(L.map(function(r){return r.tarikhIso.slice(0,4)}).filter(Boolean)).sort().reverse();
     if(!ST.thn)ST.thn=thnL[0]||String(kini().y);
     $('#subTajuk').innerHTML='';
-    $('#topExtra').innerHTML='<div class="seg" style="grid-template-columns:repeat(4,minmax(0,1fr))" role="group" aria-label="Paparan statistik">'+[['kategori','Kategori'],['perincian','Perincian'],['murid','Murid'],['kelas','Kelas']].map(function(t){return'<button type="button" data-t="'+t[0]+'" aria-pressed="'+(ST.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</div>';
+    $('#topExtra').innerHTML='<div class="seg" style="grid-template-columns:repeat(5,minmax(0,1fr))" role="group" aria-label="Paparan statistik">'+[['kategori','Kategori'],['perincian','Perincian'],['hukuman','Hukuman'],['murid','Murid'],['kelas','Kelas']].map(function(t){return'<button type="button" data-t="'+t[0]+'" aria-pressed="'+(ST.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</div>';
     $('#topExtra').querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){ST.tab=b.dataset.t;vStatistik()})});
     var X=L.filter(function(r){return r.tarikhIso.slice(0,4)===ST.thn});
     var P=X.map(function(r){return pecahKes(r,R)}),lama=P.filter(function(p){return p.kat===TIADA_KAT}).length;
@@ -675,6 +675,22 @@ function vStatistik(){
         return'<section class="card"><h3 class="h3" style="display:flex;justify-content:space-between;gap:8px"><span>'+esc(cap(k[0]))+'</span><span>'+k[1]+' kes</span></h3>'+
           a.map(function(x){return barisHb(cap(x[0]),x[1],m)}).join('')+'</section>'}).join('')||'<section class="card"><p class="muted">Tiada data.</p></section>';
       isi='<p class="note" style="margin:0">Perincian dikumpulkan mengikut kategori kes. Satu laporan boleh mempunyai lebih daripada satu perincian, jadi jumlah perincian boleh melebihi bilangan kes.</p>'+isi;
+    }else if(ST.tab==='hukuman'){
+      /* Lajur TINDAKAN dipecah ikut " , ". Baris tidak sejajar (laluan gambar dalam lajur TINDAKAN) diabaikan. */
+      var h={},tiada=0,salah=0,lamaPel=X.length&&X.every(function(r){return r.tindakan===undefined});
+      X.forEach(function(r){
+        var t=String(r.tindakan||'').split(/\s*,\s*/).map(function(x){return x.trim().toUpperCase()}).filter(Boolean);
+        if(t.some(function(x){return/_IMAGES\/|\.(JPE?G|PNG)$/.test(x)})){salah++;return}
+        t=uniq(t);if(!t.length){tiada++;return}
+        t.forEach(function(x){h[x]=(h[x]||0)+1});
+      });
+      var ah=susun(h),mh=ah.length?ah[0][1]:1;
+      isi=lamaPel?'<p class="note warn" style="margin:0">Pelayan belum dikemas kini. Minta admin deploy Code.gs 1.0.10 (Deploy › Manage deployments › New version) supaya data hukuman dihantar ke aplikasi.</p>':
+        '<section class="card"><h3 class="h3">Hukuman / tindakan yang dikenakan</h3>'+
+        (ah.map(function(a){return barisHb(cap(a[0]),a[1],mh,X.length)}).join('')||'<p class="muted">Tiada data.</p>')+
+        (tiada?'<p class="muted" style="margin:0;font-size:13px">'+tiada+' kes tiada tindakan direkod.</p>':'')+'</section>'+
+        '<p class="note" style="margin:0">Bilangan = kes yang menerima hukuman itu; peratus daripada '+X.length+' kes. Satu kes boleh menerima lebih daripada satu hukuman.</p>'+
+        (salah?'<p class="note warn" style="margin:0">'+salah+' laporan tidak dikira kerana lajur TINDAKAN mengandungi laluan gambar (baris tidak sejajar dalam Sheet). Lihat Senarai › Perlu semakan atau betulkan dalam Sheet.</p>':'');
     }else{
       var c={};
       X.forEach(function(r,i){var k=ST.tab==='kategori'?P[i].kat:ST.tab==='murid'?(r.nama+'|'+r.kelas):r.kelas;if(!k||k==='|')k='(tiada)';c[k]=(c[k]||0)+1});
@@ -688,7 +704,7 @@ function vStatistik(){
     M('<div class="row" style="cursor:default;justify-content:space-between"><label class="lbl" for="sThn">Tahun</label><select class="inp" id="sThn" style="width:auto;height:40px">'+opts(thnL.length?thnL:[ST.thn],ST.thn,false)+'</select><b>'+X.length+' kes</b></div>'+
       isi+
       (lama&&(ST.tab==='kategori'||ST.tab==='perincian')?'<p class="note warn" style="margin:0">'+lama+' laporan lama tiada kategori kes yang sah dalam Sheet (perincian ditulis dalam lajur KATEGORI KES). Ia dipaparkan sebagai '+esc(TIADA_KAT)+'. Betulkan lajur E dan F dalam Sheet untuk mengkategorikannya.</p>':'')+
-      (ST.tab!=='perincian'?'<section class="card"><h3 class="h3">Kes setiap bulan, '+esc(ST.thn)+'</h3><div class="cols">'+bln.map(function(n,i){return'<div><b>'+(n||'')+'</b><i style="height:'+Math.round(n/mb*100)+'px"></i><span>'+BULAN[i].slice(0,3)+'</span></div>'}).join('')+'</div></section>':'')+
+      (ST.tab!=='perincian'&&ST.tab!=='hukuman'?'<section class="card"><h3 class="h3">Kes setiap bulan, '+esc(ST.thn)+'</h3><div class="cols">'+bln.map(function(n,i){return'<div><b>'+(n||'')+'</b><i style="height:'+Math.round(n/mb*100)+'px"></i><span>'+BULAN[i].slice(0,3)+'</span></div>'}).join('')+'</div></section>':'')+
       (rosak?'<p class="note warn" style="margin:0">'+rosak+' laporan mempunyai tarikh tidak sah dalam Sheet dan tidak dikira di sini. Lihat Senarai › Perlu semakan.</p>':''));
     $('#sThn').addEventListener('change',function(e){ST.thn=e.target.value;vStatistik()});
   }).catch(gagal);

@@ -10,7 +10,7 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0.9',
+  VERSI: '1.0.10',
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -271,7 +271,7 @@ function senarai(token) {
   return semuaLaporan_().map(function (o) {
     return { id: o.id, kelas: o.kelas, nama: o.nama, kategori: o.kategori, perincian: o.perincian, tarikh: o.tarikh,
       tarikhIso: o.tarikhIso, masa: o.masa, tempat: o.tempat, pelapor: o.pelapor, unit: o.unit,
-      gambar1: o.gambar1, ada_pdf: !!(o.pdf || o.pautan), rosak: o.rosak };
+      gambar1: o.gambar1, tindakan: o.tindakan, ada_pdf: !!(o.pdf || o.pautan), rosak: o.rosak };
   });
 }
 function butiran(token, id) {
