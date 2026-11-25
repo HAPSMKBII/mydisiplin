@@ -233,7 +233,7 @@ dl.dt dt:nth-last-of-type(1),dl.dt dd:last-child{border-bottom:0}
 <script>
 (function(){
 "use strict";
-var VERSI='1.0.3';
+var VERSI='1.0.4';
 var $=function(s){return document.querySelector(s)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}}
@@ -577,7 +577,7 @@ function langkah2(R,L){
     (D.prev.tandatangan&&!D.fail.tandatangan?'<p class="muted" style="margin:0;font-size:12px">Tandatangan sedia ada dikekalkan jika tidak ditandatangan semula.</p>':'')+
     '<canvas class="pad" id="pad" aria-label="Kotak tandatangan"></canvas></div>'+
     '<div class="f"><label class="lbl" for="iPelapor">Dilaporkan oleh</label><select class="inp" id="iPelapor">'+opts(uniq([D.pelapor].concat(R.pelapor)),D.pelapor,false)+'</select></div>'+
-    (D.id?'':'<p class="note warn" style="margin:0">Selepas dihantar: PDF laporan dijana dan notifikasi dihantar ke kumpulan Telegram Unit Disiplin (tanpa nama penuh murid).</p>')+
+    (D.id?'':'<p class="note warn" style="margin:0">Selepas dihantar: PDF laporan dijana dan notifikasi dihantar ke kumpulan Telegram Unit Disiplin (termasuk nama murid dan kelas).</p>')+
     '<p class="err" id="e2" hidden></p></form>');
   lazy(m);
   ikatCariPilih('cGuru',guru,D.guruBertugas);ikatChips('cTin',D.tindakan);

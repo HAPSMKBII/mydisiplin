@@ -1,7 +1,7 @@
 /**
  * MyDisiplin – pelayan (Google Apps Script)
  * Laporan kes disiplin murid SMK Bugaya II Semporna
- * Versi 1.0.7 · Oleh Cikgu Henry Able Padtong
+ * Versi 1.0.8 · Oleh Cikgu Henry Able Padtong
  *
  * Serasi dengan AppSheet MYDISIPLIN26: menulis ke helaian LAPORAN yang sama,
  * ID 8 aksara, TARIKH sebagai tarikh, gambar dalam folder LAPORAN_Images aplikasi AppSheet.
@@ -10,7 +10,7 @@
 var KONFIG = {
   NAMA_SEKOLAH: 'SMK Bugaya II Semporna',
   NAMA_SISTEM: 'MyDisiplin',
-  VERSI: '1.0.7',
+  VERSI: '1.0.8',
   TEMPOH_SESI_SAAT: 21600,          // 6 jam
   MAKS_CUBAAN_GAGAL: 5,
   KUNCI_MINIT: 15,
@@ -636,6 +636,7 @@ function beritahuTelegram_(r) {
   if (!r) return false;
   var o = bentukLaporan_(r);
   var t = '<b>LAPORAN KES DISIPLIN BAHARU</b>\n' +
+    (o.nama ? 'Nama murid: ' + esc_(o.nama) + '\n' : '') +
     'Kelas: ' + esc_(o.kelas) + '\n' +
     'Kategori: ' + esc_(o.kategori) + '\n' +
     (o.perincian ? 'Perincian: ' + esc_(o.perincian) + '\n' : '') +
