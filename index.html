@@ -233,7 +233,7 @@ dl.dt dt:nth-last-of-type(1),dl.dt dd:last-child{border-bottom:0}
 <script>
 (function(){
 "use strict";
-var VERSI='1.0.6';
+var VERSI='1.0.7';
 var $=function(s){return document.querySelector(s)};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}}
@@ -274,20 +274,51 @@ $('#fLog').addEventListener('submit',function(e){
 });
 function logKeluar(senyap){
   if(S.token&&!senyap)panggil('log_keluar',S.token).catch(function(){});
-  S.token=null;S.profil=null;S.lap=null;ls('md-token',null);ls('md-profil',null);
+  S.token=null;S.profil=null;S.lap=null;S.ruj=null;ls('md-token',null);ls('md-profil',null);ls('md-lap',null);ls('md-ruj',null);thumbs={};if('caches' in window)caches.delete('md-thumb').catch(function(){});
   $('#app').hidden=true;$('#log').hidden=false;
 }
 
 /* ---------- Data ---------- */
+/* Data dipaparkan serta-merta daripada simpanan telefon (localStorage), kemudian dikemas kini di latar. */
 function muatRujukan(paksa){
   if(!paksa&&S.ruj)return Promise.resolve(S.ruj);
-  if(!paksa){try{var c=JSON.parse(ls('md-ruj')||'null');if(c&&c.t>Date.now()-864e5){S.ruj=c.d;return Promise.resolve(S.ruj)}}catch(e){}}
-  return panggil('rujukan',S.token).then(function(d){S.ruj=d;ls('md-ruj',JSON.stringify({t:Date.now(),d:d}));return d});
+  var ambil=function(){return panggil('rujukan',S.token,!!paksa).then(function(d){S.ruj=d;ls('md-ruj',JSON.stringify({t:Date.now(),d:d}));return d})};
+  if(!paksa){try{var c=JSON.parse(ls('md-ruj')||'null');if(c&&c.d){S.ruj=c.d;if(c.t<Date.now()-36e5)ambil().catch(function(){});return Promise.resolve(S.ruj)}}catch(e){}}
+  return ambil();
 }
+var segarLap=null;
+function simpanLap(d){
+  S.lap=d.sort(function(a,b){return(b.tarikhIso+b.masa).localeCompare(a.tarikhIso+a.masa)});S.lapMasa=Date.now();
+  ls('md-lap',JSON.stringify(S.lap));return S.lap;
+}
+function ambilLap(segar){return panggil('senarai',S.token,!!segar).then(simpanLap)}
 function muatLaporan(paksa){
-  if(!paksa&&S.lap)return Promise.resolve(S.lap);
-  return panggil('senarai',S.token).then(function(d){S.lap=d.sort(function(a,b){return(b.tarikhIso+b.masa).localeCompare(a.tarikhIso+a.masa)});return S.lap});
+  if(paksa)return ambilLap(true);
+  if(S.lap)return Promise.resolve(S.lap);
+  try{var c=JSON.parse(ls('md-lap')||'null');if(c&&c.length!==undefined){S.lap=c;kemasLatar();return Promise.resolve(S.lap)}}catch(e){}
+  if(segarLap)return segarLap.then(function(){return S.lap||ambilLap(false)});
+  return ambilLap(false);
 }
+/* Muat semula senarai di latar; lukis semula paparan jika data berubah. */
+function kemasLatar(){
+  if(segarLap||!S.token)return;
+  var lama=JSON.stringify(S.lap||null);
+  segarLap=ambilLap(false).then(function(L){if(JSON.stringify(L)!==lama)lukisSemula()}).catch(function(){}).then(function(){segarLap=null});
+}
+function lukisSemula(){
+  var v=location.hash.slice(1).split('/')[0]||'utama';
+  if(['utama','senarai','statistik','takwim'].indexOf(v)<0||!$('#busy').hidden||$('#app').hidden)return;
+  var a=document.activeElement;if(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))return;
+  var y=window.scrollY;route();setTimeout(function(){window.scrollTo(0,y)},0);
+}
+/* Selepas menghantar/mengubah/memadam: paparan seterusnya guna data lama serta-merta, kemudian kemas kini. */
+function lupaLap(buangId){
+  S.lap=null;
+  if(buangId){try{var c=JSON.parse(ls('md-lap')||'null');if(c)ls('md-lap',JSON.stringify(c.filter(function(r){return r.id!==buangId})))}catch(e){}}
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&S.token&&S.lap&&Date.now()-(S.lapMasa||0)>6e4)kemasLatar();
+});
 var thumbs={},antri=[],jalan=0;
 function muatThumb(img){
   var p=img.getAttribute('data-g');if(!p)return;
@@ -297,9 +328,18 @@ function muatThumb(img){
 function pam(){
   while(jalan<3&&antri.length){
     (function(img){var p=img.getAttribute('data-g');jalan++;
-      (thumbs[p]?Promise.resolve(thumbs[p]):panggil('gambar',S.token,p,true)).then(function(u){if(u){thumbs[p]=u;img.src=u}else tiada(img)}).catch(function(){tiada(img)}).then(function(){jalan--;pam()});
+      (thumbs[p]?Promise.resolve(thumbs[p]):thumbSimpan(p).then(function(u){return u||panggil('gambar',S.token,p,true).then(function(u){if(u)thumbSimpan(p,u);return u})})).then(function(u){if(u){thumbs[p]=u;img.src=u}else tiada(img)}).catch(function(){tiada(img)}).then(function(){jalan--;pam()});
     })(antri.shift());
   }
+}
+/* Gambar kecil disimpan dalam Cache Storage telefon supaya tidak dimuat turun semula setiap kali aplikasi dibuka. */
+function thumbSimpan(p,u){
+  if(!('caches' in window))return Promise.resolve('');
+  var k=new Request(location.origin+'/__thumb/'+encodeURIComponent(p));
+  return caches.open('md-thumb').then(function(c){
+    if(u!==undefined)return c.put(k,new Response(u)).then(function(){return u});
+    return c.match(k).then(function(r){return r?r.text():''});
+  }).catch(function(){return ''});
 }
 function tiada(img){var x=document.createElement('span');x.className=img.className||'';x.style.cssText='display:flex;align-items:center;justify-content:center;text-align:center;font-size:10px;color:#5a6b82;width:100%;height:100%;background:#e6ecf3';x.textContent='Tiada gambar';img.replaceWith(x)}
 var io='IntersectionObserver' in window?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){io.unobserve(e.target);muatThumb(e.target)}})},{rootMargin:'200px'}):null;
@@ -324,7 +364,10 @@ function route(){
 window.addEventListener('hashchange',route);
 $('#btnBack').addEventListener('click',function(){if(history.length>1)history.back();else location.hash='#utama'});
 $('#btnProfil').addEventListener('click',function(){location.hash='#profil'});
-$('#btnMuat').addEventListener('click',function(){S.lap=null;thumbs={};muatRujukan(true).catch(function(){});route()});
+$('#btnMuat').addEventListener('click',function(){
+  thumbs={};sibuk('Memuat semula…');
+  Promise.all([muatLaporan(true),muatRujukan(true).catch(function(){})]).then(function(){sibuk(false);route()}).catch(function(e){sibuk(false);toast(e.message)});
+});
 function tajuk(t,sub){$('#tajuk').textContent=t;$('#subTajuk').textContent=sub||''}
 function M(html){$('#main').innerHTML=html;return $('#main')}
 function gagal(e){M('<div class="card"><p class="err" style="margin:0">'+esc(e.message)+'</p><button class="btn" type="button" onclick="location.reload()">Cuba lagi</button></div>')}
@@ -426,9 +469,9 @@ function vButiran(arg){
       $('#bPadam').addEventListener('click',function(){
         var b=this;if(Date.now()-tekanPadam>4000){tekanPadam=Date.now();b.textContent='Tekan sekali lagi untuk padam';setTimeout(function(){b.textContent='Padam'},4000);return}
         tekanPadam=0;sibuk('Memadam…');
-        panggil('padam',S.token,o.id).then(function(){sibuk(false);S.lap=null;toast('Laporan dipadam (salinan disimpan dalam helaian LAPORAN DIPADAM).');location.replace('#senarai')}).catch(function(e){sibuk(false);toast(e.message)});
+        panggil('padam',S.token,o.id).then(function(){sibuk(false);lupaLap(o.id);toast('Laporan dipadam (salinan disimpan dalam helaian LAPORAN DIPADAM).');location.replace('#senarai')}).catch(function(e){sibuk(false);toast(e.message)});
       });
-      $('#bJana').addEventListener('click',function(){sibuk('Menjana PDF…');panggil('jana_pdf',S.token,o.id).then(function(){sibuk(false);S.lap=null;toast('PDF dijana semula.')}).catch(function(e){sibuk(false);toast(e.message)})});
+      $('#bJana').addEventListener('click',function(){sibuk('Menjana PDF…');panggil('jana_pdf',S.token,o.id).then(function(){sibuk(false);lupaLap();toast('PDF dijana semula.')}).catch(function(e){sibuk(false);toast(e.message)})});
     }
   }).catch(gagal);
 }
@@ -608,7 +651,7 @@ function hantar(){
   sibuk(D.id?'Menyimpan perubahan…':'Menghantar laporan, memuat naik gambar dan menjana PDF… (boleh mengambil masa hingga 30 saat)');
   var b=document.querySelector('.bar-act');if(b)b.querySelectorAll('button').forEach(function(x){x.disabled=true});
   (D.id?panggil('ubah',S.token,D.id,data,D.fail):panggil('hantar',S.token,data,D.fail)).then(function(r){
-    sibuk(false);S.lap=null;var id=r.id;D=null;
+    sibuk(false);lupaLap();var id=r.id;D=null;
     toast((r.pdf?'Laporan disimpan dan PDF dijana.':'Laporan disimpan. PDF belum dijana: '+(r.ralatPdf||''))+(r.ralatTelegram?' Telegram gagal.':''),4500);
     location.replace('#butiran/'+id);
   }).catch(function(e){sibuk(false);if(b)b.querySelectorAll('button').forEach(function(x){x.disabled=false});$('#e2').textContent=e.message;$('#e2').hidden=false});
@@ -788,7 +831,13 @@ $('#versiTeks').textContent='Versi '+VERSI+' · Hak milik Unit Disiplin SMK Buga
 function mula(baru){
   if(!S.token){route();return}
   if(baru){if(!location.hash||location.hash==='#')location.hash='#utama';else route();return}
-  panggil('profil',S.token).then(function(p){S.profil=p;ls('md-profil',JSON.stringify(p));route()}).catch(function(e){if(S.token)route()});
+  // Papar serta-merta dengan profil tersimpan; sahkan sesi di latar (tidak lagi menunggu pelayan).
+  var ada=!!S.profil;
+  if(ada)route();
+  panggil('profil',S.token).then(function(p){
+    var ubah=!ada||!S.profil||S.profil.mestiTukar!==p.mestiTukar||S.profil.peranan!==p.peranan;
+    S.profil=p;ls('md-profil',JSON.stringify(p));if(ubah)route();
+  }).catch(function(e){if(S.token&&!ada)route()});
 }
 mula(false);
 

@@ -1,6 +1,6 @@
 // MyDisiplin — service worker
 // Naikkan VERSI setiap kali index.html dikemas kini.
-const VERSI = 'mydisiplin-v1.0.6';
+const VERSI = 'mydisiplin-v1.0.7';
 const WAJIB = ['./index.html'];
 const PILIHAN = ['./', './manifest.webmanifest', './tetapan.js', './lencana.png', './ikon-192.png', './ikon-512.png',
   './ikon-maskable-512.png', './apple-touch-icon.png', './favicon.png'];
@@ -12,7 +12,7 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(ks => Promise.all(ks.filter(k => k !== VERSI).map(k => caches.delete(k))))
+    .then(ks => Promise.all(ks.filter(k => k !== VERSI && k !== 'md-thumb').map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
