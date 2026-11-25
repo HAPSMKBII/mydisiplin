@@ -1,6 +1,6 @@
 // MyDisiplin — service worker
 // Naikkan VERSI setiap kali index.html dikemas kini.
-const VERSI = 'mydisiplin-v1.0.4';
+const VERSI = 'mydisiplin-v1.0.5';
 const WAJIB = ['./index.html'];
 const PILIHAN = ['./', './manifest.webmanifest', './tetapan.js', './lencana.png', './ikon-192.png', './ikon-512.png',
   './ikon-maskable-512.png', './apple-touch-icon.png', './favicon.png'];
